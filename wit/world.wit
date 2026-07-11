@@ -1,0 +1,158 @@
+// Canonical host/guest contract for `.manatan2` media extensions.
+// The public copy lives in Manatan-SDK/wit/world.wit. Keep both compatible.
+package manatan:extensions@2.0.0;
+
+interface host {
+    enum log-level { trace, debug, info, warn, error }
+    log: func(level: log-level, message: string);
+    now-millis: func() -> s64;
+    random-bytes: func(length: u32) -> result<list<u8>, string>;
+    api-version: func() -> u32;
+    locale: func() -> string;
+    sleep-millis: func(milliseconds: u32) -> result<_, string>;
+}
+
+interface net {
+    record request {
+        method: string,
+        url: string,
+        cookie-url: option<string>,
+        headers: list<tuple<string, string>>,
+        body: option<list<u8>>,
+        timeout-ms: option<u32>,
+        redirect-policy: option<string>,
+        max-body-bytes: option<u64>,
+        rate-limit-key: option<string>,
+        minimum-interval-ms: option<u32>,
+    }
+    record response {
+        status: u16,
+        headers: list<tuple<string, string>>,
+        final-url: string,
+        body: list<u8>,
+    }
+    fetch: func(request: request) -> result<response, string>;
+    fetch-many: func(requests: list<request>, concurrency: u16) -> list<result<response, string>>;
+}
+
+interface assets {
+    record asset-info {
+        path: string,
+        size: u64,
+        mime-type: option<string>,
+    }
+    list-assets: func() -> result<list<asset-info>, string>;
+    read: func(path: string) -> result<list<u8>, string>;
+}
+
+// Stable capability escape hatch. New bounded host services can be added by
+// name without changing the Component Model world or invalidating v2 guests.
+interface services {
+    record binary-response {
+        response-json: string,
+        bytes: list<u8>,
+    }
+    available: func() -> list<string>;
+    invoke: func(service: string, request-json: string) -> result<string, string>;
+    invoke-binary: func(service: string, request-json: string, bytes: list<u8>) -> result<binary-response, string>;
+}
+
+interface store {
+    get: func(namespace: string, key: string) -> result<option<string>, string>;
+    set: func(namespace: string, key: string, value-json: string) -> result<_, string>;
+    delete: func(namespace: string, key: string) -> result<_, string>;
+    list-entries: func(namespace: string) -> result<list<tuple<string, string>>, string>;
+}
+
+interface cookies {
+    record cookie {
+        name: string,
+        value: string,
+        domain: string,
+        path: option<string>,
+        secure: bool,
+        http-only: bool,
+        expires-at: option<s64>,
+    }
+    record snapshot {
+        header: option<string>,
+        cookies: list<cookie>,
+    }
+    get: func(url: string) -> result<snapshot, string>;
+    set: func(url: string, cookies: list<cookie>) -> result<_, string>;
+}
+
+// Platform WebViews evolve faster than the core source model. Versioned JSON
+// keeps this edge extensible without weakening the typed component boundary.
+interface webview {
+    open: func(request-json: string) -> result<string, string>;
+    extract: func(request-json: string) -> result<string, string>;
+}
+
+interface guest {
+    record binary-output {
+        bytes: list<u8>,
+        mime-type: option<string>,
+    }
+
+    init: func() -> result<_, string>;
+    // Future source operations use this dispatch function. The named exports
+    // below remain the canonical fast path for the v2 baseline operations.
+    dispatch: func(source-id: string, operation: string, request-json: string) -> result<string, string>;
+    filters: func(source-id: string, request-json: string) -> result<string, string>;
+    preferences: func(source-id: string, request-json: string) -> result<string, string>;
+    home: func(source-id: string, request-json: string) -> result<string, string>;
+
+    manga-list: func(source-id: string, request-json: string) -> result<string, string>;
+    manga-search: func(source-id: string, request-json: string) -> result<string, string>;
+    manga-details: func(source-id: string, request-json: string) -> result<string, string>;
+    manga-chapters: func(source-id: string, request-json: string) -> result<string, string>;
+    manga-pages: func(source-id: string, request-json: string) -> result<string, string>;
+    manga-home: func(source-id: string, request-json: string) -> result<string, string>;
+    manga-item-url: func(source-id: string, request-json: string) -> result<string, string>;
+    manga-chapter-url: func(source-id: string, request-json: string) -> result<string, string>;
+    manga-handle-url: func(source-id: string, request-json: string) -> result<string, string>;
+    manga-prepare-chapter: func(source-id: string, request-json: string) -> result<string, string>;
+    manga-resolve-page-image: func(source-id: string, request-json: string) -> result<string, string>;
+    manga-process-page-image: func(source-id: string, request-json: string) -> result<string, string>;
+    manga-process-page-bytes: func(source-id: string, context-json: string, bytes: list<u8>, mime-type: option<string>) -> result<option<binary-output>, string>;
+    manga-alternate-covers: func(source-id: string, request-json: string) -> result<string, string>;
+    manga-related: func(source-id: string, request-json: string) -> result<string, string>;
+    manga-migrate: func(source-id: string, request-json: string) -> result<string, string>;
+
+    video-list: func(source-id: string, request-json: string) -> result<string, string>;
+    video-search: func(source-id: string, request-json: string) -> result<string, string>;
+    video-details: func(source-id: string, request-json: string) -> result<string, string>;
+    video-episodes: func(source-id: string, request-json: string) -> result<string, string>;
+    video-seasons: func(source-id: string, request-json: string) -> result<string, string>;
+    video-hosters: func(source-id: string, request-json: string) -> result<string, string>;
+    video-streams: func(source-id: string, request-json: string) -> result<string, string>;
+    video-hoster-streams: func(source-id: string, request-json: string) -> result<string, string>;
+    video-home: func(source-id: string, request-json: string) -> result<string, string>;
+    video-item-url: func(source-id: string, request-json: string) -> result<string, string>;
+    video-episode-url: func(source-id: string, request-json: string) -> result<string, string>;
+    video-handle-url: func(source-id: string, request-json: string) -> result<string, string>;
+    video-process-resource: func(source-id: string, context-json: string, bytes: list<u8>, mime-type: option<string>) -> result<option<binary-output>, string>;
+
+    novel-list: func(source-id: string, request-json: string) -> result<string, string>;
+    novel-search: func(source-id: string, request-json: string) -> result<string, string>;
+    novel-details: func(source-id: string, request-json: string) -> result<string, string>;
+    novel-chapters: func(source-id: string, request-json: string) -> result<string, string>;
+    novel-chapters-page: func(source-id: string, request-json: string) -> result<string, string>;
+    novel-text: func(source-id: string, request-json: string) -> result<string, string>;
+    novel-home: func(source-id: string, request-json: string) -> result<string, string>;
+    novel-item-url: func(source-id: string, request-json: string) -> result<string, string>;
+    novel-chapter-url: func(source-id: string, request-json: string) -> result<string, string>;
+    novel-handle-url: func(source-id: string, request-json: string) -> result<string, string>;
+}
+
+world extension {
+    import host;
+    import net;
+    import store;
+    import cookies;
+    import webview;
+    import assets;
+    import services;
+    export guest;
+}
