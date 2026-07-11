@@ -45,15 +45,15 @@ manatan_sdk::export_extension!(
 Build it for `wasm32-unknown-unknown`, componentize it with `wasm-tools`, and
 zip the component with `manifest.json` as `name.manatan2`.
 
-See [Authoring](docs/AUTHORING.md), the [format specification](docs/FORMAT.md)
+See [Authoring](docs/AUTHORING.md) and the [format specification](docs/FORMAT.md).
 
 ## Repository layout
 
 ```text
-crates/manatan-sdk/   Rust traits, models, helpers, and generated bindings
-wit/world.wit         canonical Component Model contract
-docs/AUTHORING.md     build and authoring guide
-docs/FORMAT.md        schema, ABI, security, and repository format
+crates/manatan-sdk/                 Rust traits, models, helpers, and bindings
+crates/manatan-sdk/wit/world.wit   canonical Component Model contract
+docs/AUTHORING.md                   build and authoring guide
+docs/FORMAT.md                      schema, ABI, security, and repository format
 ```
 
 Licensed under MIT.

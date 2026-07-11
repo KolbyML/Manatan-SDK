@@ -20,7 +20,7 @@ Add the SDK and serialization support:
 crate-type = ["cdylib"]
 
 [dependencies]
-manatan-sdk = { git = "https://github.com/KolbyML/Manatan-SDK" }
+manatan-sdk = "0.2"
 serde_json = "1"
 ```
 

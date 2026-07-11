@@ -22,7 +22,7 @@ pub use source::{Error, Extension, MangaSource, NovelSource, Result, VideoSource
 
 wit_bindgen::generate!({
     world: "extension",
-    path: "../../wit",
+    path: "wit",
     pub_export_macro: true,
     export_macro_name: "export_extension_raw",
 });

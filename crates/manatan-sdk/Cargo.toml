@@ -6,6 +6,9 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
+readme = "README.md"
+publish = ["crates-io"]
+include = ["src/**", "wit/**", "README.md"]
 keywords = ["manatan", "manga", "anime", "novel", "wasm"]
 categories = ["wasm", "api-bindings"]
 

@@ -1,5 +1,5 @@
 // Canonical host/guest contract for `.manatan2` media extensions.
-// The public copy lives in Manatan-SDK/wit/world.wit. Keep both compatible.
+// This copy is published with the SDK crate. Keep the host contract compatible.
 package manatan:extensions@2.0.0;
 
 interface host {
