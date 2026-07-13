@@ -20,7 +20,7 @@ Add the SDK and serialization support:
 crate-type = ["cdylib"]
 
 [dependencies]
-manatan-sdk = "0.2"
+manatan-sdk = "0.3"
 serde_json = "1"
 ```
 
@@ -79,6 +79,33 @@ selector/URL/script/event waits, preload and result scripts, HTML, cookie sync,
 and bounded request/event capture. WebView access may be unavailable on
 headless hosts, so sources should prefer HTTP and degrade cleanly.
 
+Use `WebViewSession` when a challenge or login spans calls. Persistent session
+state is owned by Manatan and isolated by package, source, profile id, and web
+origin; it does not depend on a platform WebView's global data store. Use
+`clear` for logout, and `initialStorage` only when importing known state for a
+specific serialized origin. Cookies remain in the permission-checked cookie
+jar and still require `cookies: true` plus `cookieUrl`.
+
+Catalog covers, banners, chapter/episode thumbnails, alternate covers, and
+novel block images use `ImageRequest`. This lets protected artwork carry a
+GET or POST method, headers, optional body, and an explicit cookie scope while
+the host continues to enforce network and cookie permissions. Use `ImageRequest::get`
+for ordinary images; never place a raw `Cookie` header in artwork metadata.
+For images embedded in `NovelText.html`, set `baseUrl` for relative paths and
+set `imageContext` when the images share headers or a cookie scope. Manatan
+rewrites `src`/common lazy-image attributes through the same protected artwork
+path. Prefer typed image blocks when image requests differ within a chapter.
+
+Filters are typed and keyed. `MultiSelect` values are the selected option
+`value` strings (not labels or UI indexes), which keeps the same request shape
+on every Manatan platform. Search receives a JSON object keyed by filter id:
+selects contain an option value, multi-selects an array of values, tri-state is
+`0` (ignore), `1` (include), or `2` (exclude), sort contains `index`, `value`,
+and `ascending`, and groups contain a nested object keyed by child id.
+Represent an include/exclude checkbox set as a `Group` of `TriState` children,
+one child per option. Put reader-specific styles in `NovelText.css`; arbitrary
+extension scripts are never injected into the reader UI.
+
 For pure token/deobfuscation scripts, request `javascript: true` and use
 `javascript::evaluate`. This is lighter than a WebView, shares one isolated
 context across the supplied scripts/expression, and is loop-bounded. Use
@@ -100,6 +127,12 @@ For explicit account flows, implement `authentication_status`, `authenticate`,
 and `logout`, then set the manifest `authentication` capability. Credentials
 are an extensible JSON map so username/password, API-key, two-factor, and
 device-code sites share the same operation convention. Do not log credentials.
+If user interaction is required, return an `AuthenticationAction::Form`,
+`WebView`, or `ExternalBrowser` step. A WebView step uses a source-local
+persistent profile, syncs only permission-scoped cookies, may declare safe
+auto-close conditions, and must remain manually closable for challenge flows.
+After the step completes, the host calls `authenticate` again with collected
+form values or an empty interactive request so the source can verify success.
 
 Every source trait also has a `dispatch` hook for future or site-specific
 operations such as comments and server-side bookmarks. Use a namespaced

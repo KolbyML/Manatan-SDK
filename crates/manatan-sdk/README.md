@@ -16,7 +16,7 @@ It provides:
 
 ```toml
 [dependencies]
-manatan-sdk = "0.2"
+manatan-sdk = "0.3"
 ```
 
 Build extension guests for `wasm32-unknown-unknown` and componentize the output

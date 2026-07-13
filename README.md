@@ -17,6 +17,10 @@ not contain extension implementations or depend on Manatan's private host.
   capabilities. Guests have no ambient filesystem, socket, or process access.
 - Manifests declare network origins and privileged capabilities. The host
   enforces them on every call.
+- Protected artwork uses typed requests while UI-facing URLs remain opaque;
+  browser profiles persist origin-isolated challenge/login state.
+- Filters and authentication interactions have media-neutral typed models,
+  including multi-select filters and form/WebView/external-browser steps.
 - ABI version 2 uses the WebAssembly Component Model. Legacy `.manatan` core
   modules are intentionally incompatible and obsolete.
 

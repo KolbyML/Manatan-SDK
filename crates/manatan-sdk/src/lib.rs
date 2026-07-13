@@ -366,8 +366,7 @@ mod tests {
                     html: false,
                 },
                 NovelContentBlock::Image {
-                    url: "https://example.test/illustration.jpg".to_string(),
-                    headers: Headers::default(),
+                    image: ImageRequest::get("https://example.test/illustration.jpg"),
                     alt: Some("Illustration".to_string()),
                 },
             ],
@@ -376,6 +375,23 @@ mod tests {
         let text = serde_json::to_value(text).unwrap();
         assert_eq!(text["blocks"][0]["type"], "text");
         assert_eq!(text["blocks"][1]["type"], "image");
+        assert_eq!(
+            text["blocks"][1]["image"]["url"],
+            "https://example.test/illustration.jpg"
+        );
+
+        let filter = FilterDefinition::MultiSelect {
+            id: "genres".to_string(),
+            name: "Genres".to_string(),
+            options: vec![OptionItem {
+                label: "Action".to_string(),
+                value: "action".to_string(),
+            }],
+            default: vec!["action".to_string()],
+        };
+        let filter = serde_json::to_value(filter).unwrap();
+        assert_eq!(filter["type"], "multiSelect");
+        assert_eq!(filter["default"], json!(["action"]));
 
         let preference = PreferenceDefinition::MultiSelect {
             key: "servers".to_string(),
@@ -392,8 +408,23 @@ mod tests {
             "multiSelect"
         );
 
+        let mut session = browser::WebViewSession {
+            id: "login".to_string(),
+            return_storage: true,
+            ..browser::WebViewSession::default()
+        };
+        session.initial_storage.origins.insert(
+            "https://example.test".to_string(),
+            browser::WebViewOriginStorage {
+                local_storage: [("token".to_string(), "secret".to_string())]
+                    .into_iter()
+                    .collect(),
+                ..browser::WebViewOriginStorage::default()
+            },
+        );
         let browser_request = browser::WebViewRequest {
             url: "https://example.test/challenge".to_string(),
+            session: Some(session),
             wait_for: Some(browser::WebViewWait::Selector {
                 selector: "#loaded".to_string(),
             }),
@@ -402,5 +433,26 @@ mod tests {
         };
         let browser_request = serde_json::to_value(browser_request).unwrap();
         assert_eq!(browser_request["waitFor"]["type"], "selector");
+        assert_eq!(
+            browser_request["session"]["initialStorage"]["origins"]["https://example.test"]
+                ["localStorage"]["token"],
+            "secret"
+        );
+
+        let auth = AuthenticationState {
+            action: Some(AuthenticationAction::WebView {
+                url: "https://example.test/login".to_string(),
+                profile: "login".to_string(),
+                cookie_url: Some("https://example.test".to_string()),
+                completion: AuthenticationWebViewCompletion {
+                    required_cookie_names: vec!["session".to_string()],
+                    ..AuthenticationWebViewCompletion::default()
+                },
+            }),
+            ..AuthenticationState::default()
+        };
+        let auth = serde_json::to_value(auth).unwrap();
+        assert_eq!(auth["action"]["type"], "webView");
+        assert_eq!(auth["action"]["completion"]["allowManualClose"], true);
     }
 }

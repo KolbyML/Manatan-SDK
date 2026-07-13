@@ -32,9 +32,9 @@ pub struct CatalogItem {
     #[serde(default)]
     pub url: Option<String>,
     #[serde(default)]
-    pub cover: Option<String>,
+    pub cover: Option<ImageRequest>,
     #[serde(default)]
-    pub banner: Option<String>,
+    pub banner: Option<ImageRequest>,
     #[serde(default)]
     pub description: Option<String>,
     #[serde(default)]
@@ -82,11 +82,9 @@ impl CatalogItem {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AlternateCover {
-    pub url: String,
+    pub image: ImageRequest,
     #[serde(default)]
     pub label: Option<String>,
-    #[serde(default)]
-    pub headers: Headers,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -106,7 +104,7 @@ pub struct MangaChapter {
     #[serde(default)]
     pub language: Option<String>,
     #[serde(default)]
-    pub thumbnail: Option<String>,
+    pub thumbnail: Option<ImageRequest>,
     #[serde(default)]
     pub url: Option<String>,
     #[serde(default)]
@@ -126,7 +124,7 @@ pub struct MangaChapter {
 pub struct MangaPage {
     pub content: PageContent,
     #[serde(default)]
-    pub thumbnail: Option<String>,
+    pub thumbnail: Option<ImageRequest>,
     #[serde(default)]
     pub description: Option<String>,
     #[serde(default)]
@@ -171,16 +169,69 @@ impl Default for PageContent {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImageRequest {
     pub url: String,
+    /// URL whose scoped cookie jar should be attached by the host. Raw Cookie
+    /// headers are intentionally unsupported.
     #[serde(default)]
-    pub method: Option<String>,
+    pub cookie_url: Option<String>,
+    #[serde(default)]
+    pub method: ImageRequestMethod,
     #[serde(default)]
     pub headers: Headers,
     #[serde(default)]
     pub body: Option<Vec<u8>>,
+}
+
+impl ImageRequest {
+    pub fn get(url: impl Into<String>) -> Self {
+        Self {
+            url: url.into(),
+            method: ImageRequestMethod::Get,
+            ..Self::default()
+        }
+    }
+
+    pub fn post(url: impl Into<String>, body: impl Into<Vec<u8>>) -> Self {
+        Self {
+            url: url.into(),
+            method: ImageRequestMethod::Post,
+            body: Some(body.into()),
+            ..Self::default()
+        }
+    }
+
+    pub fn header(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
+        self.headers.insert(name.into(), value.into());
+        self
+    }
+
+    pub fn cookies_for(mut self, url: impl Into<String>) -> Self {
+        self.cookie_url = Some(url.into());
+        self
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ImageRequestMethod {
+    #[default]
+    Get,
+    Post,
+}
+
+impl From<String> for ImageRequest {
+    fn from(url: String) -> Self {
+        Self::get(url)
+    }
+}
+
+impl From<&str> for ImageRequest {
+    fn from(url: &str) -> Self {
+        Self::get(url)
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -225,7 +276,7 @@ pub struct VideoEpisode {
     #[serde(default)]
     pub date_uploaded: Option<i64>,
     #[serde(default)]
-    pub thumbnail: Option<String>,
+    pub thumbnail: Option<ImageRequest>,
     #[serde(default)]
     pub url: Option<String>,
     #[serde(default)]
@@ -519,8 +570,10 @@ pub struct NovelText {
     pub base_url: Option<String>,
     #[serde(default)]
     pub css: Option<String>,
+    /// Request defaults for URL images embedded in `html`. Typed image blocks
+    /// carry their own complete `ImageRequest` instead.
     #[serde(default)]
-    pub image_headers: Headers,
+    pub image_context: Option<ImageRequestContext>,
     #[serde(default)]
     pub next_chapter_key: Option<String>,
     #[serde(default)]
@@ -529,6 +582,15 @@ pub struct NovelText {
     pub blocks: Vec<NovelContentBlock>,
     #[serde(default)]
     pub extra: Extra,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageRequestContext {
+    #[serde(default)]
+    pub headers: Headers,
+    #[serde(default)]
+    pub cookie_url: Option<String>,
 }
 
 /// Ordered mixed content used by compatible sources. `html`/`text`
@@ -542,9 +604,7 @@ pub enum NovelContentBlock {
         html: bool,
     },
     Image {
-        url: String,
-        #[serde(default)]
-        headers: Headers,
+        image: ImageRequest,
         #[serde(default)]
         alt: Option<String>,
     },
@@ -634,6 +694,13 @@ pub enum FilterDefinition {
         options: Vec<OptionItem>,
         default_index: u32,
     },
+    MultiSelect {
+        id: String,
+        name: String,
+        options: Vec<OptionItem>,
+        #[serde(default)]
+        default: Vec<String>,
+    },
     Sort {
         id: String,
         name: String,
@@ -700,8 +767,100 @@ pub struct AuthenticationState {
     pub message: Option<String>,
     #[serde(default)]
     pub expires_at: Option<i64>,
+    /// Next user-visible step when authentication cannot finish in the
+    /// current call. The host presents it and calls `authenticate` again with
+    /// the collected values or after the browser step completes.
+    #[serde(default)]
+    pub action: Option<AuthenticationAction>,
     #[serde(default)]
     pub extra: Extra,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum AuthenticationAction {
+    Form {
+        title: String,
+        #[serde(default)]
+        message: Option<String>,
+        fields: Vec<AuthenticationField>,
+        #[serde(default)]
+        submit_label: Option<String>,
+    },
+    WebView {
+        url: String,
+        /// Source-local persistent browser profile used for this flow.
+        #[serde(default = "default_auth_profile")]
+        profile: String,
+        #[serde(default)]
+        cookie_url: Option<String>,
+        #[serde(default)]
+        completion: AuthenticationWebViewCompletion,
+    },
+    ExternalBrowser {
+        url: String,
+        #[serde(default)]
+        callback_url: Option<String>,
+    },
+}
+
+fn default_auth_profile() -> String {
+    "login".to_string()
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthenticationWebViewCompletion {
+    /// URL patterns which allow the host to close the WebView automatically.
+    #[serde(default)]
+    pub close_url_patterns: Vec<String>,
+    /// Cookie names that must exist for `cookie_url` before auto-close.
+    #[serde(default)]
+    pub required_cookie_names: Vec<String>,
+    /// Challenge flows normally remain manually closable even without a
+    /// deterministic success URL.
+    #[serde(default = "default_true")]
+    pub allow_manual_close: bool,
+}
+
+impl Default for AuthenticationWebViewCompletion {
+    fn default() -> Self {
+        Self {
+            close_url_patterns: Vec::new(),
+            required_cookie_names: Vec::new(),
+            allow_manual_close: true,
+        }
+    }
+}
+
+fn default_true() -> bool {
+    true
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthenticationField {
+    pub key: String,
+    pub label: String,
+    #[serde(default)]
+    pub kind: AuthenticationFieldKind,
+    #[serde(default)]
+    pub placeholder: Option<String>,
+    #[serde(default)]
+    pub required: bool,
+    #[serde(default)]
+    pub options: Vec<OptionItem>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum AuthenticationFieldKind {
+    #[default]
+    Text,
+    Password,
+    OneTimeCode,
+    ApiKey,
+    Select,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

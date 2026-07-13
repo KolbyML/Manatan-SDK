@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use serde::Deserialize;
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
@@ -10,6 +12,10 @@ pub struct WebViewRequest {
     pub url: String,
     #[serde(default)]
     pub cookie_url: Option<String>,
+    /// Optional source-scoped browser profile. Profile ids are local to the
+    /// current source and never expose or share a platform WebView profile.
+    #[serde(default)]
+    pub session: Option<WebViewSession>,
     #[serde(default)]
     pub wait_for: Option<WebViewWait>,
     #[serde(default)]
@@ -34,6 +40,8 @@ pub struct WebViewExtractRequest {
     pub url: String,
     #[serde(default)]
     pub cookie_url: Option<String>,
+    #[serde(default)]
+    pub session: Option<WebViewSession>,
     #[serde(default)]
     pub headers: Vec<(String, String)>,
     #[serde(default)]
@@ -79,6 +87,8 @@ pub struct WebViewExtractResponse {
     pub captured_requests: Vec<WebViewCapturedRequest>,
     #[serde(default)]
     pub captured_events: Vec<WebViewCapturedEvent>,
+    #[serde(default)]
+    pub storage: Option<WebViewStorageSnapshot>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -95,6 +105,72 @@ pub struct WebViewResponse {
     pub captured_events: Vec<WebViewCapturedEvent>,
     #[serde(default)]
     pub script_results: Vec<WebViewScriptResult>,
+    #[serde(default)]
+    pub storage: Option<WebViewStorageSnapshot>,
+}
+
+/// A virtual browser session owned by the current extension source. Manatan
+/// restores persistent state before navigation and snapshots it afterward,
+/// giving identical behavior across WKWebView, Android WebView, and desktop
+/// engines without allowing two sources to share storage.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WebViewSession {
+    /// Source-local profile id, for example `login` or `default`.
+    pub id: String,
+    #[serde(default)]
+    pub persistence: WebViewSessionPersistence,
+    /// Discard any previously persisted state before applying initial values.
+    #[serde(default)]
+    pub clear: bool,
+    /// Origin-keyed state to merge into the selected profile before loading.
+    /// Keys must be serialized origins such as `https://example.com`.
+    #[serde(default)]
+    pub initial_storage: WebViewStorageSnapshot,
+    /// Include the final storage snapshot in the response. Persistent sessions
+    /// are saved by the host regardless of this response flag.
+    #[serde(default)]
+    pub return_storage: bool,
+}
+
+impl Default for WebViewSession {
+    fn default() -> Self {
+        Self {
+            id: "default".to_string(),
+            persistence: WebViewSessionPersistence::Persistent,
+            clear: false,
+            initial_storage: WebViewStorageSnapshot::default(),
+            return_storage: false,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum WebViewSessionPersistence {
+    /// Keep state only for this operation and erase it when the operation ends.
+    Ephemeral,
+    /// Persist a host-managed snapshot scoped to package, source, and profile.
+    #[default]
+    Persistent,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WebViewStorageSnapshot {
+    /// Storage is keyed by origin so a redirect can never copy one origin's
+    /// values into another origin.
+    #[serde(default)]
+    pub origins: BTreeMap<String, WebViewOriginStorage>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WebViewOriginStorage {
+    #[serde(default)]
+    pub local_storage: BTreeMap<String, String>,
+    #[serde(default)]
+    pub session_storage: BTreeMap<String, String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
