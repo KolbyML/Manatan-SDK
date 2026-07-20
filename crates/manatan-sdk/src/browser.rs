@@ -11,6 +11,10 @@ use crate::{webview, Error, Result};
 pub struct WebViewRequest {
     pub url: String,
     #[serde(default)]
+    pub method: WebViewRequestMethod,
+    #[serde(default)]
+    pub body: Option<Vec<u8>>,
+    #[serde(default)]
     pub cookie_url: Option<String>,
     /// Optional source-scoped browser profile. Profile ids are local to the
     /// current source and never expose or share a platform WebView profile.
@@ -38,6 +42,10 @@ pub struct WebViewRequest {
 #[serde(rename_all = "camelCase")]
 pub struct WebViewExtractRequest {
     pub url: String,
+    #[serde(default)]
+    pub method: WebViewRequestMethod,
+    #[serde(default)]
+    pub body: Option<Vec<u8>>,
     #[serde(default)]
     pub cookie_url: Option<String>,
     #[serde(default)]
@@ -288,6 +296,14 @@ pub enum WebViewWaitUntil {
     LoadFinished,
     DomReady,
     NetworkIdle,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum WebViewRequestMethod {
+    #[default]
+    Get,
+    Post,
 }
 
 pub fn open<I, O>(request: &I) -> Result<O>

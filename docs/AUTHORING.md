@@ -20,7 +20,7 @@ Add the SDK and serialization support:
 crate-type = ["cdylib"]
 
 [dependencies]
-manatan-sdk = "0.3"
+manatan-sdk = "1.0"
 serde_json = "1"
 ```
 
@@ -61,9 +61,18 @@ let response = manatan_sdk::client::Client::browser()
 let document = manatan_sdk::html::document(response.text()?);
 ```
 
+For large documents, declare `html.select.v1` in `permissions.services` and
+use `html::select` to run a bounded batch of CSS selectors in the native host.
+Each query can extract text, inner or outer HTML, or an attribute from the
+match or its first matching descendant. This avoids building a full DOM in an
+interpreted guest while keeping selectors and parsing decisions inside the
+extension.
+
 Requests may set `timeout_ms`, `redirect_policy("follow" | "manual" |
 "error")`, and `max_body_bytes`. Use `Client::send_many` for
 parallel hoster extraction; batches are bounded by the host.
+`RequestBuilder::multipart` and `MultipartPart` replace OkHttp multipart
+bodies without granting socket access to the guest.
 
 Use `RequestBuilder::rate_limit(key, minimum_interval_ms)` for site request
 queues. The host scopes the key to the source and coordinates it across calls
@@ -78,6 +87,9 @@ and use `browser::open`/`browser::extract` with `WebViewRequest` or
 selector/URL/script/event waits, preload and result scripts, HTML, cookie sync,
 and bounded request/event capture. WebView access may be unavailable on
 headless hosts, so sources should prefer HTTP and degrade cleanly.
+The native provider enforces `permissions.network.allow` for the main frame,
+redirects, iframes, and subresources. Extension scripts receive results through
+a data-only console envelope; no Java/Kotlin object is exposed to page script.
 
 Use `WebViewSession` when a challenge or login spans calls. Persistent session
 state is owned by Manatan and isolated by package, source, profile id, and web
@@ -85,6 +97,25 @@ origin; it does not depend on a platform WebView's global data store. Use
 `clear` for logout, and `initialStorage` only when importing known state for a
 specific serialized origin. Cookies remain in the permission-checked cookie
 jar and still require `cookies: true` plus `cookieUrl`.
+
+For ordinary Cloudflare challenge pages, prefer the SDK's bounded HTTP-first
+policy instead of writing a site-specific WebView flow:
+
+```rust,ignore
+let challenge = BrowserChallengePolicy::cloudflare("https://example.com");
+let response = Client::browser()
+    .get("https://example.com/api/items")
+    .send_with_challenge(&challenge)?
+    .error_for_status()?;
+```
+
+The policy opens a persistent, source-isolated host WebView only for a 403 or
+503 response that has a Cloudflare server header and recognized challenge DOM
+markers. It then retries the identical permission-checked request once with
+host-managed cookies. Geo-blocks and ordinary HTTP errors are not treated as
+challenges. Sources using this policy must request both `cookies: true` and
+`webview: true`; they do not need `javascript: true` because no downloaded or
+package-provided program is evaluated by the JavaScript asset service.
 
 Catalog covers, banners, chapter/episode thumbnails, alternate covers, and
 novel block images use `ImageRequest`. This lets protected artwork carry a
@@ -96,6 +127,16 @@ set `imageContext` when the images share headers or a cookie scope. Manatan
 rewrites `src`/common lazy-image attributes through the same protected artwork
 path. Prefer typed image blocks when image requests differ within a chapter.
 
+Torrent-backed EPUB sources must return a typed `NovelResource::TorrentEpub`
+on both `NovelChapter.resource` and the deferred `NovelText.resource`. Declare
+`novel::TORRENT_EPUB_CAPABILITY`, `novel::TORRENT_METAINFO_SERVICE`, and
+`novel::TORRENT_EPUB_COVER_SERVICE` in the manifest. The descriptor identifies
+one immutable file by info hash, file index, exact torrent path, and optional
+length. The extension may inspect `.torrent` metadata, but the host alone owns
+payload download, verification, resumable partial files, EPUB parsing, cache
+removal, and platform policy. Use `NovelResource::epub_cover_request` for lazy
+embedded cover artwork; it never downloads an EPUB while browsing.
+
 Filters are typed and keyed. `MultiSelect` values are the selected option
 `value` strings (not labels or UI indexes), which keeps the same request shape
 on every Manatan platform. Search receives a JSON object keyed by filter id:
@@ -106,9 +147,14 @@ Represent an include/exclude checkbox set as a `Group` of `TriState` children,
 one child per option. Put reader-specific styles in `NovelText.css`; arbitrary
 extension scripts are never injected into the reader UI.
 
-For pure token/deobfuscation scripts, request `javascript: true` and use
-`javascript::evaluate`. This is lighter than a WebView, shares one isolated
-context across the supplied scripts/expression, and is loop-bounded. Use
+For pure token/deobfuscation scripts, declare each script in `assets`, request
+`javascript: true`, and use `javascript::evaluate` with the asset paths. This
+is lighter than a WebView, shares one isolated context across the packaged
+scripts, and is loop-bounded. Read a global value or call a packaged global
+function with the typed `Invocation` enum; source-text expressions are not an
+input. Arbitrary or downloaded script text cannot be passed to the service.
+Site JavaScript belongs in an origin-scoped
+WebView; source algorithms should otherwise be written in Rust. Use
 `runtime::sleep` for source-required challenge delays rather than a guest
 thread.
 
@@ -147,7 +193,8 @@ values in the request JSON for the operation they affect.
 Declare scripts, fonts, lookup tables, or inner Wasm binaries in
 `manifest.assets`, request `assets: true`, then read them with
 `assets::{list,read}`. Asset paths are normalized and optional SHA-256 digests
-are verified during installation. Small immutable data can still be embedded
+are verified during installation. JavaScript assets always require SHA-256.
+Small immutable data can still be embedded
 with normal Rust `include_bytes!`.
 
 Image interceptors implement `process_page_image`.
@@ -193,6 +240,11 @@ instantiates the component contract before writing the package.
   "apiVersion": 2,
   "wasm": "my-source.wasm",
   "contentType": "manga",
+  "publisher": {
+    "id": "com.example",
+    "publicKey": "<64 lowercase hexadecimal characters>",
+    "signature": "<128 lowercase hexadecimal characters>"
+  },
   "description": "Example source",
   "author": "you",
   "license": "MIT",
@@ -224,6 +276,13 @@ instantiates the component contract before writing the package.
 }
 ```
 
+Generate and retain one Ed25519 signing key per publisher. Build the signature
+input with `manifest::package_signature_payload`, sign it with that key, and
+write the lowercase hexadecimal signature to `publisher.signature` before
+creating the final ZIP. Never commit the private key. Repository metadata must
+publish the same publisher id and public key so Manatan can reject repository
+substitution and publisher changes during updates.
+
 An asset declaration is separate from the icon:
 
 ```json
@@ -241,6 +300,7 @@ processing behavior without opening a local server:
 stream.requires_proxy = true;
 stream.segment_processing = Some(SegmentProcessing {
     rewrite_playlist: true,
+    cookies: true,
     rules: vec![
         SegmentRule {
             host_patterns: vec!["*.media.example".into(), "cdn.example".into()],

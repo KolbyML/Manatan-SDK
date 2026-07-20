@@ -12,13 +12,16 @@ not contain extension implementations or depend on Manatan's private host.
 - A single component may register one or more sources with the matching
   `Extension::manga`, `Extension::video`, or `Extension::novel` builder. Every
   source in a package uses the package's declared media kind.
-- HTTP (including bounded parallel batches), cookies, storage, declared
-  assets, clock/randomness, bounded JavaScript, and WebView execution are host
-  capabilities. Guests have no ambient filesystem, socket, or process access.
+- HTTP (including bounded parallel batches and multipart bodies), cookies,
+  storage, declared assets, clock/randomness, package-asset JavaScript, and
+  WebView execution are host capabilities. Guests have no ambient filesystem,
+  socket, process, or page-to-native bridge access.
 - Manifests declare network origins and privileged capabilities. The host
   enforces them on every call.
 - Protected artwork uses typed requests while UI-facing URLs remain opaque;
   browser profiles persist origin-isolated challenge/login state.
+- Recognized browser challenges use an opt-in, HTTP-first SDK policy with one
+  bounded host-WebView recovery attempt and one identical HTTP retry.
 - Filters and authentication interactions have media-neutral typed models,
   including multi-select filters and form/WebView/external-browser steps.
 - ABI version 2 uses the WebAssembly Component Model. Legacy `.manatan` core
@@ -49,7 +52,8 @@ manatan_sdk::export_extension!(
 Build it for `wasm32-unknown-unknown`, componentize it with `wasm-tools`, and
 zip the component with `manifest.json` as `name.manatan2`.
 
-See [Authoring](docs/AUTHORING.md) and the [format specification](docs/FORMAT.md).
+See [Authoring](docs/AUTHORING.md), the [format specification](docs/FORMAT.md),
+and the [source porting contract](docs/PORTING.md).
 
 ## Repository layout
 

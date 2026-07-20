@@ -29,7 +29,7 @@ is a hard install error. WIT breaking changes require a new API generation and
 package suffix policy.
 
 The Rust crate version is independent from the container/API generation.
-Version 0.3 establishes the typed JSON baseline for `.manatan2`; later crate
+Version 1.0 establishes the stable typed JSON baseline for `.manatan2`; later crate
 releases may add fields and helpers, but must keep that wire shape backward
 compatible. Any breaking WIT or JSON change requires a new API generation and
 package suffix rather than silently changing generation 2.
@@ -37,13 +37,16 @@ package suffix rather than silently changing generation 2.
 ## Manifest
 
 Required package fields are `schemaVersion`, `id`, `name`, `version`,
-`versionCode`, `apiVersion`, `wasm`, `contentType`, and a non-empty `sources`
-array. Package/source ids start with a lowercase ASCII letter and contain only
-lowercase letters, digits, `.`, `_`, and `-`.
+`versionCode`, `apiVersion`, `wasm`, `contentType`, `publisher`, and a non-empty
+`sources` array. Package, source, and publisher ids start with a lowercase ASCII
+letter and contain only lowercase letters, digits, `.`, `_`, and `-`.
 
 All sources in one package currently share the package `contentType`:
 `manga`, `video`, or `novel`. This keeps install/update/repository behavior
 unambiguous while allowing a source factory to ship multiple sites.
+Every source must explicitly declare `contentRating` as `safe`, `suggestive`,
+or `adult`; missing and `unknown` ratings are rejected so hosts can apply
+store and user content controls before browsing.
 
 `permissions.network.allow` contains URL patterns such as
 `https://example.com` or `https://*.example.com`. `*` may be used only when an
@@ -59,7 +62,37 @@ suffix. Explicit ports must match; a pattern without a port allows the host on
 any port so self-hosted sources can use user-configured endpoints.
 
 `assets` entries declare `path` plus optional `mimeType` and hexadecimal
-`sha256`. Only declared assets are readable by the guest asset capability.
+`sha256`. JavaScript assets require `sha256`; APK, JAR, Dex, class, native
+library, and executable assets are rejected. Only declared assets are readable
+by the guest asset capability.
+
+The archive is closed: files other than `manifest.json`, the declared
+component, optional `filters.json`/`preferences.json`, the icon, and declared
+assets are rejected. An executable cannot be hidden in an undeclared ZIP
+member. Icons must be raster PNG, JPEG, WebP, GIF, or AVIF files.
+
+Repository indexes must include a 64-character hexadecimal `sha256` for every
+`.manatan2` artifact. The host verifies the complete download, package id, and
+content type before installation; redirects or mirrors cannot substitute a
+different package. This digest is required even when the repository is served
+over HTTPS.
+
+Every package is also authenticated by `publisher.id`, a 32-byte lowercase
+hexadecimal Ed25519 `publisher.publicKey`, and a 64-byte lowercase hexadecimal
+`publisher.signature`. The signature is calculated over:
+
+1. the ASCII domain separator `manatan2-package-signature-v1` followed by a
+   zero byte;
+2. recursively key-sorted, whitespace-free JSON for `manifest.json` after
+   removing only `publisher.signature`; and
+3. for every non-directory ZIP entry except `manifest.json`, sorted by entry
+   name: the eight-byte big-endian UTF-8 name length, the entry name, and the
+   32-byte SHA-256 digest of the entry contents.
+
+This binds the component, metadata, optional filters/preferences, icon, and all
+assets to one stable publisher identity. Updates to an installed package must
+use the same publisher key. Hosts may revoke package ids, complete package
+digests, or publisher keys without trusting repository metadata.
 
 ## Guest operations
 
@@ -104,15 +137,25 @@ functions or platform-specific UI types.
 - `services`: capability discovery plus versioned JSON or typed-binary
   invocation by stable name
 
-The baseline service name `javascript.eval` provides an isolated ECMAScript
-interpreter with JSON globals and a bounded loop count. It has no filesystem
-or network globals. New service names can be introduced without changing the
-v2 WIT world. `services.invoke_binary` is reserved for services that consume
-or return significant byte payloads.
+The baseline service name `javascript.asset.v1` evaluates only manifest-
+declared package assets in an isolated ECMAScript interpreter with JSON
+globals and a bounded loop count. It has no filesystem or network globals and
+accepts only data-only global reads or function calls after those assets load;
+it does not accept arbitrary expressions or downloaded script text. This
+restriction applies to the standalone algorithm service. A permissioned WebView
+may execute the scripts of the loaded page and extension-provided extraction
+scripts inside that page, but it has no page-to-native interface and every
+navigation and subresource remains inside the package network allowlist.
+`html.select.v1` performs
+bounded native CSS selection over guest-supplied HTML bytes. New service names
+can be introduced without changing the v2 WIT world.
+`services.invoke_binary` is reserved for services that consume or return
+significant byte payloads.
 
 The host owns transport, TLS, redirects, cookie jars, persistence, and browser
 processes. It validates network permissions for request URLs, cookie lookup
-URLs, redirects handled by the client, and WebView entry URLs. Guest execution
+URLs, redirects handled by the client, and every WebView network request,
+including redirects, iframes, and subresources. Guest execution
 is bounded by a memory limiter and epoch deadline. iOS uses Wasmtime's Pulley
 interpreter because unsigned runtime-generated executable pages are forbidden.
 
@@ -120,11 +163,15 @@ WebView profiles are virtual and source-scoped. Persisted local/session storage
 is keyed by serialized origin and profile id, restored before page scripts, and
 captured after execution. Hosts must not expose a shared native WebView data
 store as extension state or inject one origin's storage into another origin.
+Native providers must not expose `addJavascriptInterface` or an equivalent
+page-to-native object to extension-controlled pages. Script results are data,
+not privileged commands.
 
 Artwork fields use the typed `ImageRequest` resource. Hosts fetch these through
 the extension permission boundary rather than exposing request headers or
 cookies in UI-facing URLs. Redirects and `cookieUrl` are checked using the same
-rules as guest HTTP requests.
+rules as guest HTTP requests, and `cookieUrl` must have the same origin as the
+request it authenticates. Cookies are never exported to another origin.
 
 ## Media and page processing
 
@@ -133,6 +180,8 @@ binary input through typed Component Model lists and return an optional binary
 output with MIME type. The host imposes size, memory, and epoch limits.
 
 Common HLS work is declarative through `VideoStream.segmentProcessing`:
+cookies are selected for each resource URL from the source-scoped host jar,
+while matching rules can add non-cookie headers or bounded byte transforms.
 
 - host/URL/resource-kind matching;
 - a bounded fixed leading-byte strip;
@@ -146,7 +195,8 @@ playlist/key URLs, range forwarding, and segment streaming.
 
 Repository indexes may expose the manifest directly or a normalized entry.
 Every installable entry must identify schema 2 or point to a `.manatan2`
-artifact and include its media type. Recommended fields:
+artifact, include its media type, pin the complete artifact digest, and repeat
+the package publisher identity. A normalized entry has this shape:
 
 ```json
 {
@@ -157,6 +207,11 @@ artifact and include its media type. Recommended fields:
   "contentType": "manga",
   "extensionType": "manatan2",
   "packageUrl": "packages/com.example.my-source.manatan2",
+  "sha256": "<64 lowercase hexadecimal characters>",
+  "publisher": {
+    "id": "com.example",
+    "publicKey": "<64 lowercase hexadecimal characters>"
+  },
   "iconUrl": "icons/com.example.my-source.png"
 }
 ```

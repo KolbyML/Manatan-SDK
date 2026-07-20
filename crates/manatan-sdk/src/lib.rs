@@ -13,6 +13,7 @@ pub mod html;
 pub mod javascript;
 pub mod manifest;
 pub mod model;
+pub mod novel;
 pub mod runtime;
 pub mod services;
 pub mod storage;
@@ -321,13 +322,27 @@ mod tests {
 
     #[test]
     fn ecosystem_models_keep_additive_wire_shapes() {
+        let timestamp = serde_json::to_value(MediaTimestamp {
+            time_seconds: 12.5,
+            end_seconds: Some(24.0),
+            label: "Segment".to_string(),
+            kind: Some("chapter".to_string()),
+        })
+        .unwrap();
+        assert_eq!(timestamp["timeSeconds"], 12.5);
+        assert_eq!(timestamp["endSeconds"], 24.0);
+
         let stream = VideoStream {
             url: "https://cdn.example.test/master.m3u8".to_string(),
             requires_proxy: true,
             segment_processing: Some(SegmentProcessing {
                 rewrite_playlist: true,
+                cookies: true,
                 rules: vec![SegmentRule {
                     host_patterns: vec!["*.example.test".to_string()],
+                    headers: [("Referer".to_string(), "https://example.test".to_string())]
+                        .into_iter()
+                        .collect(),
                     strip_prefix_bytes: Some(252),
                     auto_detect_media_offset: true,
                     ..SegmentRule::default()
@@ -341,6 +356,11 @@ mod tests {
             stream["segmentProcessing"]["rules"][0]["stripPrefixBytes"],
             252
         );
+        assert_eq!(
+            stream["segmentProcessing"]["rules"][0]["headers"]["Referer"],
+            "https://example.test"
+        );
+        assert_eq!(stream["segmentProcessing"]["cookies"], true);
 
         let hoster = VideoHoster {
             key: "server-1".to_string(),
@@ -379,6 +399,23 @@ mod tests {
             text["blocks"][1]["image"]["url"],
             "https://example.test/illustration.jpg"
         );
+
+        let resource = NovelResource::TorrentEpub {
+            version: novel::TORRENT_EPUB_RESOURCE_VERSION,
+            uri: "https://example.test/collection.torrent".to_string(),
+            info_hash: "0123456789abcdef0123456789abcdef01234567".to_string(),
+            file_index: 7,
+            file_path: "Series/Volume 1.epub".to_string(),
+            length_bytes: Some(42),
+            trackers: Vec::new(),
+        };
+        let encoded = serde_json::to_value(&resource).unwrap();
+        assert_eq!(encoded["type"], "torrentEpub");
+        assert_eq!(encoded["version"], 1);
+        assert_eq!(encoded["fileIndex"], 7);
+        assert_eq!(encoded["filePath"], "Series/Volume 1.epub");
+        let decoded: NovelResource = serde_json::from_value(encoded).unwrap();
+        assert_eq!(decoded, resource);
 
         let filter = FilterDefinition::MultiSelect {
             id: "genres".to_string(),

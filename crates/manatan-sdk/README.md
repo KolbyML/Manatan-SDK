@@ -8,15 +8,18 @@ It provides:
 
 - source traits and media-neutral models;
 - Component Model export bindings;
-- host-mediated HTTP, cookies, storage, assets, JavaScript, and browser access;
-- typed manga page and video resource processing callbacks; and
+- host-mediated HTTP, cookies, storage, assets, JavaScript, browser access, and
+  native batched HTML selection;
+- bounded HTTP-first browser challenge recovery with source-isolated cookies;
+- typed manga page, video processing, and host-materialized novel resources;
+  and
 - manifest, authentication, preference, filter, and host-service models.
 
 ## Dependency
 
 ```toml
 [dependencies]
-manatan-sdk = "0.3"
+manatan-sdk = "1.0"
 ```
 
 Build extension guests for `wasm32-unknown-unknown` and componentize the output

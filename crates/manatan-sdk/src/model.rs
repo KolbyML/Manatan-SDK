@@ -427,6 +427,11 @@ pub struct DebridInfo {
 pub struct SegmentProcessing {
     #[serde(default)]
     pub rewrite_playlist: bool,
+    /// Attach cookies applicable to each proxied resource URL from the
+    /// source-scoped host jar. Raw or cross-origin Cookie headers cannot be
+    /// embedded in stream metadata.
+    #[serde(default)]
+    pub cookies: bool,
     #[serde(default)]
     pub guest_transform: bool,
     #[serde(default)]
@@ -444,6 +449,10 @@ pub struct SegmentRule {
     pub url_contains: Vec<String>,
     #[serde(default)]
     pub host_patterns: Vec<String>,
+    /// Headers merged only for resources matching this rule. This replaces
+    /// per-route OkHttp interceptors and local NanoHTTPD forwarding servers.
+    #[serde(default)]
+    pub headers: Headers,
     #[serde(default)]
     pub strip_prefix_bytes: Option<u64>,
     #[serde(default)]
@@ -499,6 +508,10 @@ pub struct MediaSegment {
 #[serde(rename_all = "camelCase")]
 pub struct MediaTimestamp {
     pub time_seconds: f64,
+    /// Optional end of a ranged marker. When absent, the marker represents a
+    /// single point in the media timeline.
+    #[serde(default)]
+    pub end_seconds: Option<f64>,
     pub label: String,
     #[serde(default)]
     pub kind: Option<String>,
@@ -553,8 +566,46 @@ pub struct NovelChapter {
     pub summary: Option<String>,
     #[serde(default)]
     pub is_locked: bool,
+    /// Host-owned binary content used to materialize this chapter. Extensions
+    /// describe the immutable resource; they never download or parse it.
+    #[serde(default)]
+    pub resource: Option<NovelResource>,
     #[serde(default)]
     pub extra: Extra,
+}
+
+/// A versioned, host-materialized resource backing novel content.
+///
+/// Resource variants are intentionally typed instead of being placed in
+/// `extra`, so hosts can validate permissions, identity, and platform support
+/// before doing native work.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum NovelResource {
+    TorrentEpub {
+        /// Schema version for this descriptor. Version 1 is the only version
+        /// currently defined.
+        version: u32,
+        /// A magnet URI or HTTPS URL ending in `.torrent`.
+        uri: String,
+        /// Immutable v1 BitTorrent info hash as 40 hexadecimal characters.
+        info_hash: String,
+        /// Exact zero-based file index in the torrent metadata.
+        file_index: u32,
+        /// Exact normalized torrent path. Hosts verify it against the selected
+        /// file index before materializing the EPUB.
+        file_path: String,
+        /// Expected file length, when known from inspected torrent metadata.
+        #[serde(default)]
+        length_bytes: Option<u64>,
+        /// Optional additional trackers for magnet resources.
+        #[serde(default)]
+        trackers: Vec<String>,
+    },
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -578,6 +629,10 @@ pub struct NovelText {
     pub next_chapter_key: Option<String>,
     #[serde(default)]
     pub previous_chapter_key: Option<String>,
+    /// Host-owned resource to materialize when the text itself is deferred.
+    /// This normally mirrors `NovelChapter::resource`.
+    #[serde(default)]
+    pub resource: Option<NovelResource>,
     #[serde(default)]
     pub blocks: Vec<NovelContentBlock>,
     #[serde(default)]
