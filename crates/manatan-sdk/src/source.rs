@@ -59,6 +59,11 @@ pub trait MangaSource: 'static {
 
     fn search(&mut self, query: &str, page: u32, filters: &Value) -> Result<Paged<CatalogItem>>;
     fn details(&mut self, item: CatalogItem) -> Result<CatalogItem>;
+
+    /// Return every chapter in newest-first order.
+    ///
+    /// The host derives and persists source order from this list position;
+    /// chapters must not carry their own ordering index.
     fn chapters(&mut self, item: CatalogItem) -> Result<Vec<MangaChapter>>;
     fn pages(&mut self, item: CatalogItem, chapter: MangaChapter) -> Result<Vec<MangaPage>>;
 
@@ -196,6 +201,9 @@ pub trait VideoSource: 'static {
     }
     fn search(&mut self, query: &str, page: u32, filters: &Value) -> Result<Paged<CatalogItem>>;
     fn details(&mut self, item: CatalogItem) -> Result<CatalogItem>;
+
+    /// Return every episode in newest-first order. The host derives and
+    /// persists source order from this list position.
     fn episodes(&mut self, item: CatalogItem) -> Result<Vec<VideoEpisode>>;
     fn streams(&mut self, item: CatalogItem, episode: VideoEpisode) -> Result<Vec<VideoStream>>;
     fn seasons(&mut self, _item: CatalogItem) -> Result<Vec<CatalogItem>> {
@@ -291,8 +299,14 @@ pub trait NovelSource: 'static {
     }
     fn search(&mut self, query: &str, page: u32, filters: &Value) -> Result<Paged<CatalogItem>>;
     fn details(&mut self, item: CatalogItem) -> Result<CatalogItem>;
+
+    /// Return every chapter in newest-first order. The host derives and
+    /// persists source order from this list position.
     fn chapters(&mut self, item: CatalogItem) -> Result<Vec<NovelChapter>>;
     fn text(&mut self, item: CatalogItem, chapter: NovelChapter) -> Result<NovelText>;
+
+    /// Return newest-first chapter pages. Page 1 contains the newest entries,
+    /// and each subsequent page moves toward older entries.
     fn chapters_page(&mut self, item: CatalogItem, page: u32) -> Result<NovelChapterPage> {
         Ok(NovelChapterPage {
             entries: self.chapters(item)?,
@@ -300,6 +314,7 @@ pub trait NovelSource: 'static {
             page_count: Some(page.max(1)),
         })
     }
+
     fn filters(&mut self) -> Result<Vec<FilterDefinition>> {
         Ok(Vec::new())
     }

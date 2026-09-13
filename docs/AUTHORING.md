@@ -45,6 +45,20 @@ manatan_sdk::export_extension!(
 
 Every registry id must exactly match one `sources[].id` in the manifest.
 
+## Sequential media ordering
+
+`MangaSource::chapters`, `VideoSource::episodes`, and
+`NovelSource::chapters` return entries newest-first. This follows the source
+ordering convention used by Mihon: list position is extension output, while
+the canonical persisted source position belongs to the host.
+
+There is no oldest-first variant and no extension-authored `source_order`.
+Reverse an oldest-first website response before returning it. For paginated
+novels, page 1 begins with the newest entries and every subsequent page moves
+toward older entries. The host concatenates pages before assigning canonical
+positions. `chapter_number`, `volume_number`, `episode_number`, and
+`season_number` are descriptive metadata; they are not ordering indexes.
+
 ## HTTP and parsing
 
 `client::Client` sends requests through the app's permission-checked HTTP

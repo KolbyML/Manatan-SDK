@@ -12,15 +12,19 @@ It provides:
   native batched HTML selection;
 - bounded HTTP-first browser challenge recovery with source-isolated cookies;
 - typed manga page, video processing, and host-materialized novel resources;
-  and
+- newest-first sequential media lists with host-owned source positions; and
 - manifest, authentication, preference, filter, and host-service models.
 
 ## Dependency
 
 ```toml
 [dependencies]
-manatan-sdk = "1.0"
+manatan-sdk = "2.0"
 ```
+
+SDK 2.0 removes extension-authored `source_order` from manga and novel chapter
+models. Manga chapters, video episodes, and novel chapters must be returned
+newest-first; Manatan derives its persisted source positions from list order.
 
 Build extension guests for `wasm32-unknown-unknown` and componentize the output
 against the WIT world distributed with this crate.

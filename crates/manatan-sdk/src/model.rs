@@ -108,8 +108,6 @@ pub struct MangaChapter {
     #[serde(default)]
     pub url: Option<String>,
     #[serde(default)]
-    pub source_order: Option<i32>,
-    #[serde(default)]
     pub is_locked: bool,
     #[serde(default)]
     pub page_count: Option<u32>,
@@ -552,8 +550,6 @@ pub struct NovelChapter {
     pub url: Option<String>,
     #[serde(default)]
     pub language: Option<String>,
-    #[serde(default)]
-    pub source_order: Option<i32>,
     #[serde(default)]
     pub section: Option<String>,
     #[serde(default)]

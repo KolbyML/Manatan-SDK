@@ -110,6 +110,12 @@ models from `manatan-sdk::model`. This keeps the Component Model function set
 and host capabilities statically versioned while allowing backward-compatible
 model fields to be added without exploding the WIT contract.
 
+Sequential results from `manga.chapters`, `video.episodes`, `novel.chapters`,
+and `novel.chapters-page` are always newest-first. The host derives persisted
+source positions from list position after deduplication. Extensions do not
+send a per-entry source-order index; chapter, volume, episode, and season
+numbers remain descriptive metadata.
+
 `guest.dispatch` is the forward-compatible path for source operations added
 after the v2 baseline. The SDK exposes it on every source trait. The reserved
 common conventions `auth.status`, `auth.login`, and `auth.logout` use typed

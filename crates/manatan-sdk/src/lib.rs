@@ -242,7 +242,18 @@ mod tests {
             Ok(item)
         }
         fn chapters(&mut self, _item: CatalogItem) -> Result<Vec<MangaChapter>> {
-            Ok(Vec::new())
+            Ok(vec![
+                MangaChapter {
+                    key: "/chapter-2".to_string(),
+                    chapter_number: Some(2.0),
+                    ..MangaChapter::default()
+                },
+                MangaChapter {
+                    key: "/chapter-1".to_string(),
+                    chapter_number: Some(1.0),
+                    ..MangaChapter::default()
+                },
+            ])
         }
         fn pages(&mut self, _item: CatalogItem, _chapter: MangaChapter) -> Result<Vec<MangaPage>> {
             Ok(Vec::new())
@@ -294,7 +305,39 @@ mod tests {
         )
         .unwrap();
         assert_eq!(custom["page"], 2);
+
+        let legacy_chapters: serde_json::Value = serde_json::from_str(
+            &extension
+                .call(
+                    "test",
+                    "manga.chapters",
+                    r#"{"manga":{"key":"/one","title":"One"}}"#,
+                )
+                .unwrap(),
+        )
+        .unwrap();
+        assert!(legacy_chapters.is_array());
+        assert_eq!(legacy_chapters[0]["key"], "/chapter-2");
+        assert!(legacy_chapters[0].get("sourceOrder").is_none());
+
         assert_eq!(context::source_id(), None);
+    }
+
+    #[test]
+    fn sequential_models_do_not_serialize_extension_owned_source_order() {
+        let manga = serde_json::to_value(MangaChapter {
+            key: "/chapter".to_string(),
+            ..MangaChapter::default()
+        })
+        .unwrap();
+        assert!(manga.get("sourceOrder").is_none());
+
+        let novel = serde_json::to_value(NovelChapter {
+            key: "/chapter".to_string(),
+            ..NovelChapter::default()
+        })
+        .unwrap();
+        assert!(novel.get("sourceOrder").is_none());
     }
 
     #[test]

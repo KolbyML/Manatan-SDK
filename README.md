@@ -22,6 +22,8 @@ not contain extension implementations or depend on Manatan's private host.
   browser profiles persist origin-isolated challenge/login state.
 - Recognized browser challenges use an opt-in, HTTP-first SDK policy with one
   bounded host-WebView recovery attempt and one identical HTTP retry.
+- Sequential manga chapters, video episodes, and novel chapters always return
+  newest-first. The host owns canonical source positions.
 - Filters and authentication interactions have media-neutral typed models,
   including multi-select filters and form/WebView/external-browser steps.
 - ABI version 2 uses the WebAssembly Component Model. Legacy `.manatan` core
@@ -39,6 +41,7 @@ impl MangaSource for MySource {
     fn search(&mut self, query: &str, page: u32, filters: &serde_json::Value)
         -> Result<Paged<CatalogItem>> { /* ... */ }
     fn details(&mut self, item: CatalogItem) -> Result<CatalogItem> { /* ... */ }
+    // Return newest first, matching the source-list contract.
     fn chapters(&mut self, item: CatalogItem) -> Result<Vec<MangaChapter>> { /* ... */ }
     fn pages(&mut self, item: CatalogItem, chapter: MangaChapter)
         -> Result<Vec<MangaPage>> { /* ... */ }
