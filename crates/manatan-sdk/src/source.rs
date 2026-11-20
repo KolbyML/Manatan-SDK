@@ -65,6 +65,33 @@ pub trait MangaSource: 'static {
     /// The host derives and persists source order from this list position;
     /// chapters must not carry their own ordering index.
     fn chapters(&mut self, item: CatalogItem) -> Result<Vec<MangaChapter>>;
+    /// Refresh metadata and chapters from a shared upstream response.
+    fn refresh(
+        &mut self,
+        _request: CatalogRefreshRequest<MangaChapter>,
+    ) -> Result<Option<CatalogRefresh<MangaChapter>>> {
+        Ok(None)
+    }
+
+    /// Normalize chapter metadata before the host saves it.
+    fn normalize_chapter(
+        &mut self,
+        _item: &CatalogItem,
+        _chapter: MangaChapter,
+    ) -> Result<Option<MangaChapter>> {
+        Ok(None)
+    }
+
+    /// Resolve a lazy page with its full request, including scoped cookies.
+    fn resolve_page_request(
+        &mut self,
+        _item: &CatalogItem,
+        _chapter: &MangaChapter,
+        _page: &MangaPage,
+    ) -> Result<Option<ImageRequest>> {
+        Ok(None)
+    }
+
     fn pages(&mut self, item: CatalogItem, chapter: MangaChapter) -> Result<Vec<MangaPage>>;
 
     fn filters(&mut self) -> Result<Vec<FilterDefinition>> {
@@ -220,6 +247,44 @@ pub trait VideoSource: 'static {
     ) -> Result<Vec<VideoStream>> {
         self.streams(item, episode)
     }
+    fn related(&mut self, _item: &CatalogItem) -> Result<Vec<VideoRelation>> {
+        Ok(Vec::new())
+    }
+
+    fn refresh_episodes(
+        &mut self,
+        _request: CatalogRefreshRequest<VideoEpisode>,
+    ) -> Result<Option<CatalogRefresh<VideoEpisode>>> {
+        Ok(None)
+    }
+
+    fn refresh_seasons(
+        &mut self,
+        _request: CatalogRefreshRequest<CatalogItem>,
+    ) -> Result<Option<CatalogRefresh<CatalogItem>>> {
+        Ok(None)
+    }
+
+    /// Resolve a stream whose URL is obtained only when selected.
+    fn resolve_stream(
+        &mut self,
+        _item: &CatalogItem,
+        _episode: &VideoEpisode,
+        _stream: VideoStream,
+    ) -> Result<Option<VideoStream>> {
+        Ok(None)
+    }
+
+    /// Return the seek preview track for this selected stream.
+    fn seek_previews(
+        &mut self,
+        _item: &CatalogItem,
+        _episode: &VideoEpisode,
+        _stream: &VideoStream,
+    ) -> Result<Option<SeekPreviewTrack>> {
+        Ok(None)
+    }
+
     fn filters(&mut self) -> Result<Vec<FilterDefinition>> {
         Ok(Vec::new())
     }
@@ -522,6 +587,16 @@ impl<T: MangaSource> ErasedSource for MangaEntry<T> {
             }
             "manga.details" => value(self.source.details(field(&request, "manga")?)?),
             "manga.chapters" => value(self.source.chapters(field(&request, "manga")?)?),
+            "manga.refresh" => value(self.source.refresh(parse(request)?)?),
+            "manga.normalize-chapter" => value(
+                self.source
+                    .normalize_chapter(&field(&request, "manga")?, field(&request, "chapter")?)?,
+            ),
+            "manga.resolve-page-request" => value(self.source.resolve_page_request(
+                &field(&request, "manga")?,
+                &field(&request, "chapter")?,
+                &field(&request, "page")?,
+            )?),
             "manga.pages" => value(
                 self.source
                     .pages(field(&request, "manga")?, field(&request, "chapter")?)?,
@@ -629,6 +704,19 @@ impl<T: VideoSource> ErasedSource for VideoEntry<T> {
             "video.details" => value(self.source.details(field(&request, "item")?)?),
             "video.episodes" => value(self.source.episodes(field(&request, "item")?)?),
             "video.seasons" => value(self.source.seasons(field(&request, "item")?)?),
+            "video.related" => value(self.source.related(&field(&request, "item")?)?),
+            "video.refresh-episodes" => value(self.source.refresh_episodes(parse(request)?)?),
+            "video.refresh-seasons" => value(self.source.refresh_seasons(parse(request)?)?),
+            "video.resolve-stream" => value(self.source.resolve_stream(
+                &field(&request, "item")?,
+                &field(&request, "episode")?,
+                field(&request, "stream")?,
+            )?),
+            "video.seek-previews" => value(self.source.seek_previews(
+                &field(&request, "item")?,
+                &field(&request, "episode")?,
+                &field(&request, "stream")?,
+            )?),
             "video.streams" => value(
                 self.source
                     .streams(field(&request, "item")?, field(&request, "episode")?)?,

@@ -5,6 +5,8 @@ use serde_json::Value;
 
 pub type Headers = BTreeMap<String, String>;
 pub type Extra = BTreeMap<String, Value>;
+/// Reserved key for source-private memo data in a model's `extra` map.
+pub const SOURCE_MEMO_KEY: &str = "manatan.sourceMemo";
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -85,6 +87,49 @@ pub struct AlternateCover {
     pub image: ImageRequest,
     #[serde(default)]
     pub label: Option<String>,
+}
+
+/// Values omitted from a refresh leave existing host data intact.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogRefresh<T> {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub item: Option<CatalogItem>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entries: Option<Vec<T>>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogRefreshRequest<T> {
+    pub item: CatalogItem,
+    pub entries: Vec<T>,
+    pub fetch_details: bool,
+    pub fetch_entries: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct VideoRelation {
+    pub name: String,
+    pub items: Vec<CatalogItem>,
+}
+
+/// Sprite rectangles in image pixels, ordered by their playback position.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SeekPreviewTile {
+    pub position_ms: u32,
+    pub sprite_index: usize,
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SeekPreviewTrack {
+    pub sprites: Vec<ImageRequest>,
+    pub tiles: Vec<SeekPreviewTile>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

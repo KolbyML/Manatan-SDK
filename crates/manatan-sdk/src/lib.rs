@@ -324,6 +324,31 @@ mod tests {
     }
 
     #[test]
+    fn additive_refresh_preserves_the_difference_between_omitted_and_empty_entries() {
+        let omitted = CatalogRefresh::<MangaChapter> {
+            item: None,
+            entries: None,
+        };
+        let empty = CatalogRefresh::<MangaChapter> {
+            item: None,
+            entries: Some(Vec::new()),
+        };
+        assert_eq!(serde_json::to_value(omitted).unwrap(), json!({}));
+        assert_eq!(serde_json::to_value(empty).unwrap(), json!({"entries": []}));
+        let mut extension = Extension::new().manga("test", TestManga);
+        let request = json!({
+            "item": {"key":"/one","title":"One"},
+            "entries": [],
+            "fetchDetails": true,
+            "fetchEntries": true,
+        });
+        let result = extension
+            .call("test", "manga.refresh", &request.to_string())
+            .unwrap();
+        assert_eq!(result, "null");
+    }
+
+    #[test]
     fn sequential_models_do_not_serialize_extension_owned_source_order() {
         let manga = serde_json::to_value(MangaChapter {
             key: "/chapter".to_string(),

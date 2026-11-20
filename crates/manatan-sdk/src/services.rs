@@ -32,3 +32,31 @@ where
     let metadata = serde_json::from_str(&response.response_json).map_err(Error::from)?;
     Ok((metadata, response.bytes))
 }
+
+/// A parsed torrent and its metainfo file indices.
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TorrentMetainfo {
+    pub name: Option<String>,
+    pub info_hash: String,
+    pub files: Vec<TorrentFile>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct TorrentFile {
+    pub index: usize,
+    pub path: String,
+    pub length: u64,
+}
+
+pub const TORRENT_METAINFO: &str = "torrent.metainfo.v1";
+
+/// Inspect downloaded metainfo without starting a torrent session.
+pub fn inspect_torrent(
+    metainfo: &[u8],
+    expected_info_hash: Option<&str>,
+) -> Result<TorrentMetainfo> {
+    let request = serde_json::json!({ "expectedInfoHash": expected_info_hash });
+    let (result, _) = invoke_binary(TORRENT_METAINFO, &request, metainfo)?;
+    Ok(result)
+}

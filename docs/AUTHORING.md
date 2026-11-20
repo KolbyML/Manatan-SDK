@@ -341,3 +341,27 @@ zip my-source.manatan2 manifest.json my-source.wasm assets/deobfuscator.js icon.
 
 Do not rename a legacy package. `.manatan` used a different core-module ABI;
 the source must be rebuilt against this SDK and componentized.
+
+### Optional refresh and playback operations
+
+Advertise each implemented operation in `sources[].capabilities.operations`.
+The host keeps the existing calls for packages that omit these capabilities.
+
+- `manga.refresh`, `video.refresh-episodes`, and `video.refresh-seasons` can
+  return details and entries from one call. Omitted results keep stored data,
+  while an empty entries array is an explicit empty result.
+- `manga.normalize-chapter` updates a chapter before the host saves it.
+  `prepare_chapter` still runs when opening pages.
+- `manga.resolve-page-request` can return a full `ImageRequest` for a lazy page.
+  The legacy image resolver remains available.
+- `video.related` returns named groups of related catalog items.
+- `video.resolve-stream` resolves a selected entry with an empty URL and no
+  torrent descriptor. Put source-specific resolver state on the stream.
+- `video.seek-previews` returns sprite requests and timed pixel rectangles for
+  the selected stream. The host fetches and displays the frames.
+- Use `SOURCE_MEMO_KEY` in a model's `extra` map for source-private JSON objects.
+  The host may store a source-scoped reference and restore the memo on later
+  calls. Regular `extra` fields remain suitable for public metadata.
+- Video sources can request `services::TORRENT_METAINFO` permission to inspect
+  downloaded metainfo with `services::inspect_torrent`. Use the inspected
+  info hash and exact file index in the selected stream's torrent descriptor.
