@@ -19,7 +19,7 @@ It provides:
 
 ```toml
 [dependencies]
-manatan-sdk = "2.0"
+manatan-sdk = "2.1"
 ```
 
 SDK 2.0 removes extension-authored `source_order` from manga and novel chapter

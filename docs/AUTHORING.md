@@ -20,7 +20,7 @@ Add the SDK and serialization support:
 crate-type = ["cdylib"]
 
 [dependencies]
-manatan-sdk = "1.0"
+manatan-sdk = "2.1"
 serde_json = "1"
 ```
 
